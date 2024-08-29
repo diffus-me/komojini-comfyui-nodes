@@ -9,6 +9,8 @@ import numpy as np
 
 import torch
 import subprocess
+
+import execution_context
 import folder_paths
 from comfy.utils import common_upscale
 
@@ -139,6 +141,7 @@ def load_video_cv(
         output_dir = None,
         max_fps: int = -1,
         force_size = "Disabled",
+        context: execution_context.ExecutionContext = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, int, int, int, int]:
 
@@ -197,10 +200,11 @@ def download_youtube_video(
         output_dir = None,
         force_size = "Disabled",
         max_fps = None,
+        context: execution_context.ExecutionContext=None,
         **kwargs,
     ):
     if not output_dir:
-        output_dir = os.path.join(folder_paths.output_directory, "youtube")
+        output_dir = os.path.join(folder_paths.get_output_directory(context.user_hash), "youtube")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
@@ -246,6 +250,9 @@ class YouTubeVideoLoader:
             "required": {"youtube_url": ("STRING", {"default": "youtube/url/here"}),},
             "optional": {
                 "output_dir": ("STRING", {"default": ""}),
+            },
+            "hidden": {
+                "context": "EXECUTION_CONTEXT"
             }
         }
         inputs["required"].update(COMMON_REQUIRED_INPUTS)
@@ -264,14 +271,14 @@ class YouTubeVideoLoader:
 class UltimateVideoLoader:
     source = [
         "fileupload",
-        "filepath",
+        # "filepath",
         "YouTube",
         "emptyvideo",
     ]
     
     @classmethod
-    def INPUT_TYPES(cls):
-        input_dir = folder_paths.get_input_directory()
+    def INPUT_TYPES(cls, context: execution_context.ExecutionContext):
+        input_dir = folder_paths.get_input_directory(context.user_hash)
         files = []
         for f in os.listdir(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
@@ -285,6 +292,9 @@ class UltimateVideoLoader:
                 "youtube_url": ("STRING", {"default": "youtube/url/here"}),
                 "video": ("STRING", {"default": "X://insert/path/here.mp4", "path_extensions": video_extensions}),
                 "upload": (sorted(files),),
+            },
+            "hidden": {
+                "context": "EXECUTION_CONTEXT",
             }
         }
 
@@ -300,12 +310,13 @@ class UltimateVideoLoader:
 
     def load_video(self, **kwargs):
         source = kwargs.get("source")
+        context = kwargs.get("context")
         if source == "YouTube":
             images, frames_count, fps, width, height = download_youtube_video(**kwargs)
         elif source == "filepath":
             images, frames_count, fps, width, height = load_video_cv(**kwargs)
         elif source == "fileupload":
-            kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['upload'].strip("\""))
+            kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['upload'].strip("\""), context.user_hash)
             images, frames_count, fps, width, height = load_video_cv(**kwargs)
         elif source == "emptyvideo":
             frames_count = kwargs["frame_count"]

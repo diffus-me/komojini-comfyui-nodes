@@ -80,12 +80,12 @@ async def view_video(request):
     if "filename" not in query:
         return web.Response(status=404)
     filename = query["filename"]
-
+    user_hash = request.headers.get('x-diffus-user-hash', '')
     #Path code misformats urls on windows and must be skipped
     if is_url(filename):
         file = filename
     else:
-        filename, output_dir = folder_paths.annotated_filepath(filename)
+        filename, output_dir = folder_paths.annotated_filepath(filename, user_hash)
 
         type = request.rel_url.query.get("type", "output")
         if type == "path":
@@ -93,7 +93,7 @@ async def view_video(request):
             #NOTE: output_dir may be empty, but non-None
             output_dir, filename = os.path.split(filename)
         if output_dir is None:
-            output_dir = folder_paths.get_directory_by_type(type)
+            output_dir = folder_paths.get_directory_by_type(type, user_hash)
 
         if output_dir is None:
             return web.Response(status=400)
@@ -117,8 +117,8 @@ async def view_video(request):
     if query.get('format', 'video') == "folder":
         #Check that folder contains some valid image file, get it's extension
         #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
-        os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-        concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
+        os.makedirs(folder_paths.get_temp_directory(user_hash), exist_ok=True)
+        concat_file = os.path.join(folder_paths.get_temp_directory(user_hash), "image_sequence_preview.txt")
         skip_first_images = int(query.get('skip_first_images', 0))
         select_every_nth = int(query.get('select_every_nth', 1))
         valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
